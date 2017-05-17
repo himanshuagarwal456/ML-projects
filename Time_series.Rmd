@@ -1,0 +1,103 @@
+---
+title: "HW4_Q1"
+author: "Himanshu"
+date: "April 30, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+df_stock <- read.csv('C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\prices.csv',header = TRUE)
+df_dj <- read.csv('C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\dj_index.csv')
+```
+
+```{r}
+library(reshape2)
+library(caret)
+```
+1.1 Construct a T × N price matrix from the data, where N = 24 is the number of series and T is the
+total number of time ticks (days).
+```{r}
+price_mat <- acast(df_stock, Date~Stock, value.var = "Close")
+```
+1.2 Standardize the matrix so that each column has mean zero and standard deviation one. Explain why
+we should do standardization before applying PCA.
+1.3 Apply PCA on the price matrix, and plot the projection of the data on the first principal component.
+```{r}
+stnd_price_mat <- scale(price_mat)
+apply(stnd_price_mat,2,mean)
+apply(stnd_price_mat,2,sd)
+
+pca_mat <- prcomp(stnd_price_mat)
+pca <- as.data.frame(pca_mat$x)
+pca_date <- as.Date(row.names(pca))
+ggplot(pca, aes(x=pca_date, y = PC1)) + geom_point()
+```
+
+1.4 Next we will compare this principal temporal trend obtained in the previous step with the Dow Jones
+Index. Scale both series (zero mean and unit standard deviation) and visualize them as individual
+curves in a single plot for comparison
+```{r}
+df_dj$close_scale <-scale(df_dj$Close)
+
+date_dj <- as.Date(df_dj$Date)
+
+
+ggplot() + 
+  geom_line(data = df_dj,aes(x=date_dj,y = df_dj$close_scale, colour = "green")) + 
+  geom_line(data = pca,aes(x= pca_date,y = pca$PC1, colour = "red"))
+```
+
+These two time series are comparable and can be used for time series analysis. The PCA transformed series capture majority of variance and explains it well.
+
+
+
+Reconstruct price history for each stock based on the top 10 principal components
+
+Calculate the reconstruction error (the difference of reconstructed value and original value) for each
+stock on each time tick. Use the L2 norm of the error series for each stock as its anomalousness score
+and give the names of the top 3 "anomalous" stocks.
+```{r}
+recon <- as.matrix(pca_mat$x[,1:10]) %*% t(as.matrix(pca_mat$rotation[,1:10]))
+
+recon_df <- as.data.frame(recon)
+
+df_price <- as.data.frame(price_mat)
+
+error <- df_price -recon_df
+head(error)
+anomalus<- apply(error,2, norm_vec <- function(x) sqrt(sum(x^2)))
+
+error_norm <- as.data.frame(anomalus)
+error_norm$stock <- rownames(error_norm)
+row.names(error_norm)<- NULL
+error_norm_order <- error_norm[order(-anomalus), ]
+head(error_norm_order,3)
+
+
+```
+
+
+Plot the reconstructed price history and the original history for the most anomalous stock
+```{r}
+df_price <- as.data.frame(price_mat)
+price_date <- as.Date(rownames(df_price))
+recon_date <- as.Date(rownames(recon_df))
+ggplot() + 
+  geom_line(data = df_price,aes(x=price_date,y = df_price$KSS, colour = "green")) + 
+  geom_line(data = pca,aes(x= recon_date,y = recon_df$KSS, colour = "red"))
+```
+
+```{r}
+
+```
+

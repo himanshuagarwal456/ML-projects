@@ -1,0 +1,491 @@
+---
+title: "HW4_Q2 Crescent Moons"
+author: "Himanshu"
+date: "April 28, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(tidyverse)
+library(ggplot2)
+library(class)
+```
+```{r}
+crescent_df <- read.csv('C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\crescent_data_corrected.csv',header = TRUE)
+```
+
+
+2.1Visualize the dataset using a scatterplot to color by the unlabeled data and labeled data. Output
+this in a small/medium-size.
+```{r}
+ggplot(crescent_df) + 
+  geom_point(mapping = aes(x = crescent_df$X1, y = crescent_df$X2, color=as.factor(crescent_df$observed_label)))
+```
+
+
+2.2 Visualize the performance of a KNN-classification, using just the available labeled points,
+where k = 2 and classify the unlabeled points.
+First, why does using k > 2 not make that much sense, based on the visualization?
+```{r}
+
+df_model <- crescent_df[which(crescent_df$observed_label!=0),]
+df_test <- crescent_df[which(crescent_df$observed_label==0),]
+x_train <- df_model[,c("X1","X2")]
+X_test <- df_test[,c("X1","X2")]
+cl <-as.factor(df_model$observed_label)
+model.knn <- knn(x_train,X_test,as.factor(df_model$true_label),k = 2)
+ggplot(X_test) + 
+  geom_point(mapping = aes(x = X_test$X1, y = X_test$X2, color=as.factor(model.knn)))
+```
+
+k>2 does not make sense as there are only two labelled points with class label as 1. For K>2 everything will be labelled as -1 (global).
+
+
+2.3 Calculate the average Euclidean distance between all the 200 datapoints (a 200x200 matrix).
+Output this number.
+```{r}
+euc_dist <- dist(crescent_df[,2:3])
+mean_dis <- mean(euc_dist)
+mean_dis
+```
+
+2.4 Build the Gaussian radial basis distance affinity matrix, W, between all the 200 datapoints,
+as described in the algorithm. To choose the appropriate ?? size for the distance, start with just the
+average Euclidean distance you calculated above as the value of ??.
+Next, be sure to correct all the diagonal entries to be zero.
+Output the first 5 rows and 5 columns of this dataset (after zeroing the diagonal).
+```{r}
+W<- as.matrix(euc_dist)
+
+for ( i in 1:200)
+{
+  for(j in 1:200)
+  {
+    if(i!=j)
+    {
+    W[i,j] <- exp((-W[i,j])/(mean_dis*mean_dis))
+    }
+    else
+    {
+    W[i,j] <-0
+      
+    }
+  }
+}
+
+for (i in 1:5)
+{
+  for(j in 1:5)
+  {
+    
+    print(W[i,j])
+    
+  }  
+}
+```
+2.5Calculate the normalization matrix, D. Each entry of the diagonal is the sum of the corresponding
+row of the affinity matrix
+```{r}
+D<- matrix(0L, nrow = dim(W)[1], ncol = dim(W)[2])
+for ( i in 1:200)
+{
+  for(j in 1:200)
+  {
+    if(i==j)
+    {
+    D[i,j] <- sum(W[i,])
+    }
+   
+  }
+}
+
+
+```
+2.6  Using this matrix S (which measures the influence from nearby points), we will iteratively
+update our classification prediction. Y , the initial observed labels, is a vector of length 200 (one for
+2
+each datapoint), with value 1 or -1 if a datapoint is labeled, or 0 otherwise.
+The initial starting classification is to set F(0) = Y . The mixing parameter, ??, keep fixed at 0.85.
+Perform the appropriate iteration (F(t + 1) = ??SF(t) + (1 ??? ??)Y ) for 500 iterations.
+Afterwards, the final prediction rule is (
+1 Fi > 0
+???1 Fi ??? 0
+???i ??? F .
+O
+Output the prediction error rate and the plot of the predicted classification points, colored.
+
+```{r}
+library(MASS)
+library(expm)
+
+S <- ginv(sqrtm(D))%*%W%*%ginv(sqrtm(D))
+
+for (i in 1:5)
+{
+  for(j in 1:5)
+  {
+    
+    print(S[i,j])
+    
+  }  
+}
+
+```
+
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 500, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:500)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,500]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+```
+
+```{r}
+
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+```
+```{r}
+y_hat <- data.frame(y_hat)
+pred <- cbind(crescent_df,y_hat)
+
+ggplot(pred) + 
+  geom_point(mapping = aes(x = pred$X1, y = pred$X2, color=as.factor(y_hat)))
+```
+
+
+2.7 Now, remake the matrix S, but use a value of 0.03 times the average distance for the value of ??
+(instead of 1) when calculating the affinity matrix.
+Output the first 5 rows and 5 columns of this dataset (now using a different radius).
+
+```{r}
+sig_new <- mean_dis*.03
+W<- as.matrix(euc_dist)
+for ( i in 1:200)
+{
+  for(j in 1:200)
+  {
+    if(i!=j)
+    {
+    W[i,j] <- exp((-W[i,j])/(sig_new*sig_new))
+    }
+    else
+    {
+    W[i,j] <-0
+      
+    }
+  }
+}
+
+D<- matrix(0L, nrow = dim(W)[1], ncol = dim(W)[2])
+for ( i in 1:200)
+{
+  for(j in 1:200)
+  {
+    if(i==j)
+    {
+    D[i,j] <- sum(W[i,])
+    }
+   
+  }
+}
+
+S <- ginv(sqrtm(D))%*%W%*%ginv(sqrtm(D))
+for (i in 1:5)
+{
+  for(j in 1:5)
+  {
+    
+    print(S[i,j])
+    
+  }  
+}
+```
+2.8Perform the iterative semi-supervised learning for {1, 5, 10, 20, 40, 60, 80} iterations.
+For each, output the error rate.
+For your own understanding, please visualize the prediction at each of the above iterations; but for the
+
+
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 1, nrow = 200)
+F_mat[,1] <- Y
+
+
+prob <- F_mat[,1]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error
+```
+
+
+
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 5, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:5)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,5]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+```
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 10, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:10)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,10]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+y_hat <- data.frame(y_hat)
+pred <- cbind(crescent_df,y_hat)
+
+ggplot(pred) + 
+  geom_point(mapping = aes(x = pred$X1, y = pred$X2, color=as.factor(y_hat)))
+```
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 20, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:20)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,20]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+```
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 40, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:40)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,40]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+```
+
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 60, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:60)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,60]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+y_hat <- data.frame(y_hat)
+pred <- cbind(crescent_df,y_hat)
+
+ggplot(pred) + 
+  geom_point(mapping = aes(x = pred$X1, y = pred$X2, color=as.factor(y_hat)))
+```
+
+```{r}
+Y <- crescent_df$observed_label
+F_mat <- matrix(0L,ncol = 80, nrow = 200)
+F_mat[,1] <- Y
+for ( j in 2:80)
+{
+ F_mat[,j] <-.85*S%*%F_mat[,j-1] + (.15*Y)
+}
+
+prob <- F_mat[,80]
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(prob[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+
+```
+
+
+2.9 Calculate the final convergence classification predictions: F
+??? = (I ??? ??S)
+???1Y , where I is the
+diagonal identity matrix with the same dimensions as S, and Y is the same as before, the original
+labels.
+Output the error rates and classification plots for the following mixing parameters, ?? = 0.85 and
+?? = 0.999, keeping the radius the same, 0.03 times the average Euclidean distance.
+```{r}
+Y <- crescent_df$observed_label
+I <- diag(200)
+F_star <- (ginv(I - 0.85*S))%*%Y
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(F_star[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+y_hat <- data.frame(y_hat)
+pred <- cbind(crescent_df,y_hat)
+
+ggplot(pred) + 
+  geom_point(mapping = aes(x = pred$X1, y = pred$X2, color=as.factor(y_hat)))
+```
+
+```{r}
+I <- diag(200)
+F_star <- ginv(I - .999*S)%*%Y
+y_hat <- matrix(0L, ncol=1,nrow = 200)
+for(i in 1:200)
+{
+  if(F_star[i]>0)
+  {
+    y_hat[i] <- 1
+  }
+  else
+  {
+    y_hat[i]<- -1
+  }
+}
+conf.mat <- as.matrix(table(crescent_df$true_label,y_hat))
+error <- 1 -((conf.mat[1,1]+conf.mat[2,2])/(conf.mat[1,1]+conf.mat[1,2]+conf.mat[2,1]+conf.mat[2,2]))
+error
+y_hat <- data.frame(y_hat)
+pred <- cbind(crescent_df,y_hat)
+
+ggplot(pred) + 
+  geom_point(mapping = aes(x = pred$X1, y = pred$X2, color=as.factor(y_hat)))
+```
+```{r}
+df_digits <- read.csv('C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\semi_labeled_digits_25_corrected.csv')
+```
+

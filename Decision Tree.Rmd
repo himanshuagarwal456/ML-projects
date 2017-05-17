@@ -1,0 +1,155 @@
+---
+title: "HW2 Q1"
+author: "Himanshu"
+date: "March 11, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+1a) Skewness of training data set leads to mis representation of minority class. The classifier is prone to be biased to majority class and will also lead to a weak training model. 
+
+b)Read the data set and randomly under sample with equal probabilities.
+```{r}
+df_train <- read.csv("C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\term_train.csv", header = TRUE,stringsAsFactors = TRUE)
+df_test  <- read.csv("C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\term_test.csv", header = TRUE,stringsAsFactors = TRUE)
+```
+
+```{r}
+set.seed(100)
+ind_active <- sample(which(df_train$STATUS=='ACTIVE'),1000)
+ind_terminated <- sample(which(df_train$STATUS=='TERMINATED'),1000)
+df_train_active <- df_train[ind_active,]
+df_train_terminated <- df_train[ind_terminated,]
+df_train_sample <- rbind(df_train_active,df_train_terminated)
+```
+
+```{r}
+df_train_sample$STATUS <- ifelse(df_train_sample$STATUS=='TERMINATED',1,0)
+df_test$STATUS <- ifelse(df_test$STATUS=='TERMINATED',1,0)
+```
+
+
+c) Run and evaluate logisitc regression on new undersampled data set 
+```{r}
+model.bal <- glm(STATUS~age+BUSINESS_UNIT+length_of_service+STATUS_YEAR+gender_full,family=binomial,data= df_train_sample)
+summary(model.bal)
+predict.bal <- predict(model.bal,df_test)
+conf.matrix <- table(predict.bal,df_test$STATUS)
+accuracy <- sum(diag(conf.matrix))/nrow(df_test)
+accuracy
+
+```
+
+d) find the variables with maximum information gain
+```{r}
+library(FSelector)
+info.gain <- information.gain(STATUS~age+BUSINESS_UNIT+length_of_service+STATUS_YEAR+gender_full,data = df_train_sample)
+info.gain
+```
+e)Fit base decision tree and let it grow to max depth. maxdepth=30 and cp=0 to avoid stopping if no information gain.
+Problems with the decision tree:
+i)High storage complexity.
+ii)High variance , poor testing accuracy.
+iii)Unnecessary splits without any information gain.
+```{r}
+library(rpart)
+train.status <- rpart(STATUS~age+BUSINESS_UNIT+length_of_service+STATUS_YEAR+gender_full,data = df_train_sample,control = rpart.control(maxdepth = 30,cp = 0),method = "class")
+summary(train.status)
+```
+
+Plot of decision tree
+```{r}
+library(rattle)
+library(rpart.plot)
+fancyRpartPlot(train.status,main="DTree for status")
+```
+f) Use model to predict the test class and find accuracy
+
+```{r}
+pred.class <- predict(train.status,df_test,type='c')
+#pred.class <- ifelse(pred.prob>.5,1,0)
+conf.matrix <- table(pred.class,df_test$STATUS)
+conf.matrix
+```
+
+```{r}
+accuracy <-sum(diag(conf.matrix))/nrow(df_test)
+accuracy
+```
+
+g)Prune the tree to max depth 5 
+```{r}
+train.prune <- rpart(STATUS~age+BUSINESS_UNIT+length_of_service+STATUS_YEAR+gender_full,data = df_train_sample,control = rpart.control(maxdepth = 5),method = "class")
+fancyRpartPlot(train.prune,main="Pruned Decision Tree")
+```
+Prediction and accuracy
+```{r}
+pred.class <- predict(train.prune,df_test,type='c')
+conf.matrix <- table(pred.class,df_test$STATUS)
+conf.matrix
+```
+
+```{r}
+accuracy.prune <- sum(diag(conf.matrix))/nrow(df_test)
+accuracy.prune
+```
+h) pruned with minimum cross validation error
+```{r}
+plotcp(train.status)
+ptree<- prune(train.status,cp= train.status$cptable[which.min(train.status$cptable[,"xerror"]),"CP"])
+
+fancyRpartPlot(ptree, uniform=TRUE, main="Pruned Classification Tree")
+```
+
+Predicting test class and accuracy
+
+
+```{r}
+pred.class.cv <- predict(ptree,df_test,type='c')
+conf.matrix <- table(pred.class.cv,df_test$STATUS)
+conf.matrix
+```
+```{r}
+accuracy.prune.cv <- sum(diag(conf.matrix))/nrow(df_test)
+accuracy.prune.cv
+```
+
+The accuracy order
+cv pruned tree> pruned tree to 5> max depth tree
+
+  
+i) No the order is not same, this is because information gain by a feature changes after spit. The rank is based on the information gain on first split, after the data set has been split the new information gain would depend on the new child nodes.
+
+j)i)Chi-square test deletes the splits which have high chance of being redundant
+ii)Chi Square test uses maxpchance as hyperparameter.
+iii)We start from bottom and compare pchance with maxpchance(hyper parameter for regularization) and delete the split if pchance >maxpchance. higher pchance means high probability of null hypothesis to be true.
+
+k) The cross validation prune  has highest accuracy of 94% and max depth the lowest of 88%.
+Different models try to optimize the objective function and calculate hyper parameter values.
+Every model has different bias-variance trade off. Models can also be improved by using cross validation to reduce error.
+
+l)cost/benefit
+  TP = 2
+  FP = -8
+  FN = -10
+  TN = 0
+  confusion matrix to be used
+  pred.class.cv     0     1
+            0 11392    89
+            1   649   284
+  P(p) =382/12424 =.03
+  P(n) = 12041/12424 =.97
+  TP rate = 284/382 = .74
+  FP rate = 649/12041=.05
+  FN rate = 89/382 =.23
+  TN rate = 11392/12041 =.95
+  Expected profit
+    .03(.74 x 2 - .23 x-10) + .97(.05x -8 + .95x0)
+    =-.4
+  => expected loss of .4k$
+  

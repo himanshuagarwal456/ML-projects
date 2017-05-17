@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+author: "Himanshu"
+date: "April 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(caret)
+library(class)
+```
+
+Cluster on LIMIT_BAL and EDUCATION without scaling
+```{r}
+
+
+df<- read.csv("C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\credit_card_default.csv",header=TRUE)
+df_trim <- df[,3:ncol(df)-1]
+
+df_trim_1 <-df_trim
+
+
+
+df_cl <- df_trim[,c(1,3)]
+
+set.seed(2017)
+cluster <- kmeans(df_cl,centers = 2 ,nstart =  20)
+cluster$centers
+df_trim_1["cluster"] <- as.factor(cluster$cluster)
+
+
+df_trim_sample <- sample_n(df_trim_1,2000)
+
+plot(df_trim_sample$EDUCATION,df_trim_sample$LIMIT_BAL,col= df_trim_sample$cluster)
+
+
+
+```
+Cluster on LIMIT_BAL and EDUCATION with scaling
+```{r}
+#mutate all code
+
+df_trim_mut <- mutate_all(.tbl =df_trim, .funs = scale, center =T, scale=T)
+
+
+df_cl <- df_trim_mut[,c(1,3)]
+
+set.seed(2017)
+cluster <- kmeans(df_cl,centers = 2 ,nstart =  20)
+cluster$centers
+df_trim_mut["cluster"] <- as.factor(cluster$cluster)
+
+
+df_trim_sample <- sample_n(df_trim_mut,2000)
+
+plot(df_trim_sample$EDUCATION,df_trim_sample$LIMIT_BAL,col= df_trim_sample$cluster)
+```
+Plots differ in both cases as new the square distance between points change because of rescaling leading to new K means and new assigment of points to seprate clusters. In the first example both features have different range so both have different influence on cluster assignment whereas in second example both have same influence on cluster assignment
+
+```{r}
+df_summ_main<- read.csv("C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\credit_card_summarized.csv",header = TRUE)
+
+df_summ <- df_summ_main
+set.seed(2017)
+cluster_3 <- kmeans(df_summ,centers = 2,nstart = 20)
+cluster_3$centers
+set.seed(2017)
+cluster_4 <- kmeans(df_summ,centers = 4,nstart = 20)
+cluster_4$centers
+
+df_summ$cluster <- cluster_4$cluster 
+```
+For K=2 , we get two clusters with close cluster centers whereas for k=4 we get cluster 2 cluster centers close two each other and 2 cluster centers far from each other. This shows we have data concentrated around two close cluster centers and then the rest of the points are pretty far from these two centers in opposite directions. This explains one high and one low cluster center.
+
+Cluster using pay_mean and bill_mean
+```{r}
+df_summ_fltr <- df_summ[df_summ$cluster %in% c(1,4),]
+plot(df_summ_fltr$pay_mean,df_summ_fltr$bill_mean,col= df_summ_fltr$cluster)
+```
+
+Applying PCA and cluster based on Principal componenets
+```{r}
+
+pca <- prcomp(df_summ_main,scale = TRUE)
+pca_df <- data.frame(as.matrix(df_summ_main)%*%pca$rotation)
+
+pca_df_subset <- pca_df[,c(1,2)]
+
+cluster_5 <- kmeans(pca_df_subset,centers = 2,nstart = 20)
+cluster_5$centers
+pca_df$cluster <- cluster_5$cluster
+
+plot(pca_df[,1],pca_df[,2],col=pca_df$cluster)
+```
+

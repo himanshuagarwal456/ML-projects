@@ -1,0 +1,124 @@
+---
+title: "hw2_q2"
+author: "Himanshu"
+date: "March 14, 2017"
+output: html_document
+---
+days left 0
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+2.1 
+a) Kernal trick helps us find linear decision boundary in higher dimension which are non linear in the lower dimension space. This funcion gives the dot prodcut of transformation function of two x features.
+k(x1,x2)= phi(x1).phi(x2)
+This with no additional computing complexity.
+
+b)The dual OP of SVM makes it possible to use kernel trick as it uses xi.xj. The dot product of feature trannsformation is used by kernel function.
+
+c)If 50-60+ of data set it svm this means either all the training points are close to decision boundary or we need to change our margins.
+In case of non kernelized svm this may also mean a linear boundary does not classify the data very well.
+This might happen if our data is closely spread at margins or has less sparsity.
+
+2.2)1Read and run a linear SVM
+```{r}
+library(e1071)
+df_cars <- read.csv("C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\car_mpg.csv",header =TRUE)
+```
+```{r}
+
+svm_linear_kernel <- 
+  svm(high_mpg ~cylinders+displacement+horsepower+weight+acceleration+year+origin, 
+      data = df_cars, kernel = 'linear',
+      cost = 0.1,
+      type = 'C-classification')
+summary(svm_linear_kernel)
+
+```
+Prediction and accuracy of all svms
+```{r}
+svm_linear.predict <- predict(svm_linear_kernel,df_cars)
+table(svm_linear.predict,df_cars$high_mpg)
+```
+
+```{r}
+accuracy.svm.linear <- (202 +150)/392
+accuracy.svm.linear
+```
+
+```{r}
+svm_plynomial_1 <- 
+  svm(high_mpg ~ cylinders + displacement + horsepower + weight + acceleration +year + origin,
+      data = df_cars, 
+      kernel ='polynomial',
+      degree = 3,
+      cost = 1, 
+      type = 'C-classification')
+summary(svm_plynomial_1)
+```
+
+```{r}
+svm_poly_1.predict <- predict(svm_plynomial_1,df_cars)
+table(svm_poly_1.predict,df_cars$high_mpg)
+```
+```{r}
+accuracy.poly.1 <- (219+139)/392
+accuracy.poly.1
+```
+
+```{r}
+svm_plynomial_2 <- 
+  svm(high_mpg ~ cylinders + displacement + horsepower + weight + acceleration +year + origin,
+      data = df_cars, 
+      kernel ='polynomial',
+      degree = 5,
+      cost = 1, 
+      type = 'C-classification')
+summary(svm_plynomial_2)
+```
+
+```{r}
+svm_poly_2.predict <- predict(svm_plynomial_2,df_cars)
+table(svm_poly_2.predict,df_cars$high_mpg)
+
+```
+
+```{r}
+accuracy.poly.2 <- (223+118)/392
+accuracy.poly.2
+```
+
+
+Cross validation procedure result matrix with accuracy for all parameters and all folds
+```{r}
+library(cvTools)
+c <- c(10^-2,10^-1.5,10^-1,10^-.5,10^0,10^.5,10^1,10^1.5)
+g <-c(10^-3,10^-2.5,10^-2,10^-1.5,10^-1,10^-.5,10^0,10^.5,10^1,10^1.5) 
+
+#cv.best.param <- myfunc(x=df_cars,k=10,c,g){
+                  params <-data.frame(expand.grid(c,g))
+                  df_result <- data.frame(matrix(ncol = 80))
+                  folds <- cvFolds(nrow(df_cars),10)
+                  for (j in 1:nrow(params)){
+                            for (i in 1:10){
+                           
+                            train <- df_cars[folds$subsets[folds$which != i], ] 
+                            test <- df_cars[folds$subsets[folds$which == i], ] 
+                            model <- svm(high_mpg ~ cylinders + displacement + horsepower + weight + acceleration                             +year + origin,   
+                            data = df_cars, kernel = 'radial', scale = T,
+                            cost = params[j,'Var1'], gamma = params[j,'Var2'],
+                            type = 'C-classification')
+                            pred.class <- predict(model,test,type='c')
+                            conf_matrix <- table(pred.class,test$high_mpg)
+                            accuracy <- sum(diag(conf_matrix))/nrow(test)
+                            df_result[i,j] <- accuracy
+                          }
+                  }
+                  df_result
+                  #ind = which(max(df_result))
+```
+
+```{r}
+max(colMeans(df_result))
+```
+

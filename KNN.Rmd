@@ -1,0 +1,67 @@
+himanshu agarwal
+himansha
+
+1.Some features will influence the decision more than other features as thier absolute distance values would be different
+```{r}
+library(dplyr)
+library(caret)
+library(class)
+library(adabag)
+```
+
+Normalize features and create nfolds
+```{r}
+df <- read.csv('C:\\Users\\himanshu\\Desktop\\Machine Learning for problem solving\\credit_card_default.csv', header = TRUE)
+
+df$default_payment <- as.factor(df$default_payment)
+preProcParam <- preProcess(df[,2:ncol(df)], method=c("range"))
+df_model <- predict(preProcParam,df)
+
+
+k <- seq(3,43,by = 4)
+nfold <- 5
+random <- sample(nfold,nrow(df_model),r=T)
+
+```
+
+
+run 5 fold cross validation with range of K
+```{r}
+
+for (i in 1:length(k)){
+  sum.acc <- 0
+  for (folds in 1:nfold){
+     
+      
+      training <- df_model[random !=folds,]
+      test <- df_model[random == folds,]
+      
+      model <- knn(training,test, cl=training$default_payment  ,k=k[i] )
+     
+      acc.fold<- mean(test$default_payment==model)
+      sum.acc <- sum.acc + acc.fold       
+  }
+  avg <- sum.acc/ nfold
+  print(paste("K:",k[i],"Average Accuracy",avg))
+}
+```
+
+K=35 has the highest accuracy so we will choose 35 nearest neighbours
+
+Bagging would not significantly improve performance as in KNN the decision depends on points and they are not independent of each other. In decision tree it reduces variance because data points are independent from each other.
+```{r}
+data.mdoel <- bagging.cv(default_payment ~ ., v = 2, data = df_model,  mfinal = 50, control = rpart.control(cp = -1, minsplit = 0, maxdepth = 1))
+```
+
+      
+```{r}
+data.mdoel$error
+```
+No the model performance does not improve as KNN data points are dependent on each other.
+
+Boosting to improve performance
+```{r}
+data.model.boost <- boosting.cv(default_payment ~ .,v =2,df_model,boos =TRUE,mfinal = 50)
+data.model.boost$error
+```
+
